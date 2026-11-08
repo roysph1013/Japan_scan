@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>藥妝掃描</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root{--bg:#0f1115;--card:#1a1d24;--card2:#232731;--line:#2e3340;--text:#eef0f4;--sub:#9aa3b2;--acc:#4f8cff;--acc2:#2f6be0;--ok:#38c172;--warn:#f0b429;--bad:#ef5350}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;font-size:16px}
+body{padding-bottom:calc(68px + env(safe-area-inset-bottom))}
+header{padding:calc(12px + env(safe-area-inset-top)) 16px 10px;font-weight:700;font-size:20px;display:flex;align-items:center;gap:8px}
+header small{font-weight:400;color:var(--sub);font-size:12px}
+main{padding:0 14px}
+.view{display:none}.view.active{display:block}
+#reader{width:100%;min-height:240px;background:#000;border-radius:16px;overflow:hidden;position:relative}
+#reader video{width:100%!important;height:auto!important;object-fit:cover;display:block}
+#reader:empty::after{content:"按下「開始掃描」開啟相機";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:14px}
+.btn,button{appearance:none;border:1px solid var(--line);background:var(--card2);color:var(--text);border-radius:12px;padding:13px 14px;font-size:16px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-align:center}
+.btn:active,button:active{transform:scale(.98)}
+.primary{background:var(--acc);border-color:var(--acc);font-weight:700}
+.danger{color:var(--bad)}
+.ghost{background:transparent}
+.full{width:100%}
+.row{display:flex;gap:10px;margin-top:12px}.row>*{flex:1}
+input,textarea{width:100%;background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:12px;font-size:16px;font-family:inherit}
+textarea{min-height:70px;resize:vertical}
+label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:12px}
+.hint{color:var(--sub);font-size:13px;line-height:1.6}
+nav{position:fixed;left:0;right:0;bottom:0;background:#14171d;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:10}
+nav button{flex:1;border:0;border-radius:0;background:transparent;color:var(--sub);padding:10px 0 12px;flex-direction:column;gap:2px;font-size:12px}
+nav button span{font-size:22px}
+nav button.on{color:var(--acc)}
+.list .it{display:flex;gap:10px;align-items:center;padding:12px;border-bottom:1px solid var(--line);cursor:pointer}
+.list .it:last-child{border-bottom:0}
+.it .t{flex:1;min-width:0}
+.it .n{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .c{font-size:12px;color:var(--sub);margin-top:2px}
+.it .p{font-size:13px;color:var(--warn);white-space:nowrap}
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s;z-index:20}
+.mask.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:88vh;overflow:auto;background:var(--card);border-radius:20px 20px 0 0;border-top:1px solid var(--line);padding:8px 16px calc(20px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .25s ease;z-index:21}
+.sheet.on{transform:none}
+.grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 10px}
+.pname{font-size:21px;font-weight:700;line-height:1.35}
+.pja{color:var(--sub);margin-top:4px;font-size:14px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{font-size:12px;padding:3px 8px;border-radius:20px;background:var(--card2);color:var(--sub);border:1px solid var(--line)}
+.tag.ai{color:#b6c9ff;border-color:#34477a}
+.prices{display:flex;gap:10px;margin-top:12px}
+.price{flex:1;background:var(--card2);border-radius:12px;padding:10px}
+.price b{display:block;font-size:20px;color:var(--warn);margin-top:2px}
+.price small{color:var(--sub);font-size:12px}
+.sec{margin-top:14px}.sec h4{margin:0 0 4px;font-size:13px;color:var(--sub);font-weight:600}
+.sec p{margin:0;line-height:1.65;white-space:pre-wrap}
+.links{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+.links a{display:block;text-align:center;padding:9px 4px;border-radius:10px;background:var(--card2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:13px}
+.src a{color:#8fb3ff;font-size:13px;word-break:break-all;display:block;margin:3px 0}
+.spin{width:38px;height:38px;border:4px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:s 1s linear infinite;margin:24px auto 12px}
+@keyframes s{to{transform:rotate(360deg)}}
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#333a48;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:.2s;z-index:30;pointer-events:none;max-width:88vw;text-align:center}
+#toast.on{opacity:1}
+.empty{color:var(--sub);text-align:center;padding:30px 0;font-size:14px}
+.code{font-family:ui-monospace,Menlo,monospace;letter-spacing:.5px}
+</style>
+</head>
+<body>
+<header>🧴 藥妝掃描 <small>JAN 條碼查詢</small></header>
+<main>
+  <!-- 掃描 -->
+  <section id="v-scan" class="view active">
+    <div id="reader"></div>
+    <div id="reader-file" style="display:none"></div>
+    <div class="row"><button id="btnCam" class="primary">📷 開始掃描</button></div>
+    <div class="row">
+      <label class="btn">🖼 拍照讀條碼<input type="file" accept="image/*" capture="environment" id="fileBarcode" hidden></label>
+      <label class="btn">🤖 拍包裝辨識<input type="file" accept="image/*" capture="environment" id="filePack" hidden></label>
+    </div>
+    <form id="manualForm" class="row" autocomplete="off">
+      <input id="manualCode" inputmode="numeric" placeholder="手動輸入條碼" style="flex:2">
+      <button type="submit">查詢</button>
+    </form>
+    <p class="hint" style="margin-top:14px">掃到條碼後會先查手機裡存過的資料；查不到才用 Gemini 上網查。查到的結果會自動存起來，下次離線也看得到。</p>
+  </section>
+
+  <!-- 紀錄 -->
+  <section id="v-hist" class="view">
+    <div class="row" style="margin-top:0"><input id="q" placeholder="搜尋已存商品（名稱、條碼）"></div>
+    <div class="card list" id="histList" style="padding:0"></div>
+  </section>
+
+  <!-- 設定 -->
+  <section id="v-set" class="view">
+    <div class="card">
+      <b>Gemini API</b>
+      <label class="f">API 金鑰（只存在這支手機）</label>
+      <input id="cfgKey" type="password" placeholder="AIza…" autocomplete="off">
+      <p class="hint">到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:#8fb3ff">aistudio.google.com/apikey</a> 用 Google 帳號免費申請。</p>
+      <label class="f">模型</label>
+      <input id="cfgModel" list="models" placeholder="gemini-flash-latest">
+      <datalist id="models"><option value="gemini-flash-latest"><option value="gemini-flash-lite-latest"><option value="gemini-pro-latest"></datalist>
+      <label class="f">日圓匯率（1 日圓 = ? 新臺幣，留空不換算）</label>
+      <input id="cfgRate" inputmode="decimal" placeholder="例：0.21">
+      <div class="row"><button id="btnSaveCfg" class="primary">儲存設定</button><button id="btnTestKey">測試金鑰</button></div>
+    </div>
+    <div class="card">
+      <b>資料庫</b>
+      <p class="hint" id="dbInfo"></p>
+      <div class="row"><button id="btnExport">⬇ 匯出備份</button><label class="btn">⬆ 匯入<input type="file" accept="application/json,.json" id="fileImport" hidden></label></div>
+      <div class="row"><button id="btnClearHist" class="ghost">清除掃描紀錄</button></div>
+    </div>
+    <div class="card hint">
+      ・AI 查到的價格僅供參考，請點來源連結確認。<br>
+      ・免費版 Gemini 的請求內容可能被 Google 用於改善模型，請勿用來處理公務資料。<br>
+      ・資料存在瀏覽器裡，清除瀏覽器資料會一併刪除，記得定期匯出備份。
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-v="v-scan" class="on"><span>📷</span>掃描</button>
+  <button data-v="v-hist"><span>🗂</span>紀錄</button>
+  <button data-v="v-set"><span>⚙️</span>設定</button>
+</nav>
+
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ toast('儲存失敗，手機空間可能不足'); } }
+};
+let db = LS.get('ys_db', {});
+let hist = LS.get('ys_hist', []);
+let cfg = Object.assign({ key:'', model:'gemini-flash-latest', rate:'' }, LS.get('ys_cfg', {}));
+const saveDb = () => LS.set('ys_db', db);
+const saveHist = () => LS.set('ys_hist', hist);
+
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
+
+/* ---------- 分頁 ---------- */
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === b.dataset.v));
+  if (b.dataset.v !== 'v-scan') stopScan();
+  if (b.dataset.v === 'v-hist') renderHist();
+  if (b.dataset.v === 'v-set') renderSet();
+});
+
+/* ---------- 底部卡片 ---------- */
+function openSheet(html){ $('#sheetBody').innerHTML = html; $('#sheet').classList.add('on'); $('#mask').classList.add('on'); $('#sheet').scrollTop = 0; }
+function closeSheet(){ $('#sheet').classList.remove('on'); $('#mask').classList.remove('on'); }
+$('#mask').onclick = closeSheet;
+
+/* ---------- 掃碼 ---------- */
+let scanner = null, scanning = false;
+function formats(){
+  const F = Html5QrcodeSupportedFormats;
+  return [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128];
+}
+function updBtn(){ $('#btnCam').textContent = scanning ? '■ 停止掃描' : '📷 開始掃描'; }
+async function startScan(){
+  if (!window.Html5Qrcode){ toast('掃碼元件載入失敗，請確認網路'); return; }
+  if (!scanner) scanner = new Html5Qrcode('reader', { formatsToSupport: formats(), experimentalFeatures:{ useBarCodeDetectorIfSupported:true }, verbose:false });
+  try{
+    await scanner.start({ facingMode:'environment' },
+      { fps:12, qrbox:(w,h) => ({ width:Math.max(120, Math.min(w*0.85, 340)), height:Math.max(60, Math.min(h*0.45, 160)) }) },
+      onCode, () => {});
+    scanning = true; updBtn();
+  }catch(e){ toast('無法開啟相機：' + (e.message || e)); }
+}
+async function stopScan(){
+  if (scanner && scanning){ try{ await scanner.stop(); }catch(e){} }
+  scanning = false; updBtn();
+}
+let lastCode = '', lastAt = 0;
+function onCode(text){
+  const code = (text || '').trim();
+  if (code === lastCode && Date.now() - lastAt < 3000) return;
+  lastCode = code; lastAt = Date.now();
+  if (navigator.vibrate) navigator.vibrate(80);
+  stopScan();
+  lookup(code);
+}
+$('#btnCam').onclick = () => scanning ? stopScan() : startScan();
+
+$('#fileBarcode').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  if (!window.Html5Qrcode){ toast('掃碼元件載入失敗'); return; }
+  await stopScan();
+  try{
+    const fs = new Html5Qrcode('reader-file', { formatsToSupport: formats(), verbose:false });
+    const code = await fs.scanFile(f, false);
+    onCode(code);
+  }catch(err){ toast('照片裡找不到條碼，請拍清楚一點或改用「拍包裝辨識」'); }
+};
+$('#manualForm').onsubmit = e => {
+  e.preventDefault();
+  const c = $('#manualCode').value.replace(/\s/g, '');
+  if (!c) return;
+  $('#manualCode').value = ''; $('#manualCode').blur();
+  lookup(c);
+};
+$('#filePack').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (f) packLookup(f, null);
+};
+
+/* ---------- 查詢流程 ---------- */
+function addHist(code){
+  hist = [code, ...hist.filter(c => c !== code)].slice(0, 200);
+  saveHist();
+}
+function lookup(code){
+  addHist(code);
+  if (db[code]) return showProduct(code);
+  if (cfg.key) return aiLookup(code);
+  showNotFound(code, '尚未設定 Gemini 金鑰，只能查本機資料。');
+}
+
+/* ---------- 顯示 ---------- */
+function yen2tw(y){ const r = parseFloat(cfg.rate); return (r && y) ? Math.round(y * r) : null; }
+const fmt = n => Number(n).toLocaleString('zh-TW');
+function searchLinks(p, code){
+  const jq = encodeURIComponent(p?.nameJa || code);
+  const tq = encodeURIComponent(p?.nameTw || p?.nameZh || p?.nameJa || code);
+  const cq = encodeURIComponent(code);
+  const L = [
+    ['Google', `https://www.google.com/search?q=${cq}`],
+    ['楽天', `https://search.rakuten.co.jp/search/mall/${jq}/`],
+    ['Yahoo!JP', `https://shopping.yahoo.co.jp/search?p=${jq}`],
+    ['Amazon JP', `https://www.amazon.co.jp/s?k=${jq}`],
+    ['蝦皮', `https://shopee.tw/search?keyword=${tq}`],
+    ['momo', `https://www.momoshop.com.tw/search/searchShop.jsp?keyword=${tq}`],
+    ['PChome', `https://24h.pchome.com.tw/search/?q=${tq}`],
+    ['Google 中', `https://www.google.com/search?q=${tq}`]
+  ];
+  return `<div class="links">${L.map(([n,u]) => `<a href="${u}" target="_blank" rel="noopener">${n}</a>`).join('')}</div>`;
+}
+function sec(title, text){ return text ? `<div class="sec"><h4>${title}</h4><p>${esc(text)}</p></div>` : ''; }
+
+function showProduct(code){
+  const p = db[code]; if (!p) return showNotFound(code);
+  const tw = yen2tw(p.jpPrice);
+  const srcs = (p.sources || []).filter(s => s && s.uri);
+  openSheet(`
+    <div class="pname">${esc(p.nameZh || p.nameJa || '（未命名商品）')}</div>
+    ${p.nameJa ? `<div class="pja">${esc(p.nameJa)}</div>` : ''}
+    <div class="tags">
+      ${p.nameTw ? `<span class="tag">臺灣通稱：${esc(p.nameTw)}</span>` : ''}
+      ${p.brand ? `<span class="tag">${esc(p.brand)}</span>` : ''}
+      ${p.category ? `<span class="tag">${esc(p.category)}</span>` : ''}
+      <span class="tag ${p.by === 'ai' ? 'ai' : ''}">${p.by === 'ai' ? 'AI 查詢' : '手動編輯'}</span>
+      ${code.startsWith('img-') ? '' : `<span class="tag code">${esc(code)}</span>`}
+    </div>
+    <div class="prices">
+      <div class="price"><small>日本售價</small><b>${p.jpPrice ? '¥' + fmt(p.jpPrice) : '—'}</b>${tw ? `<small>約 NT$${fmt(tw)}</small>` : ''}</div>
+      <div class="price"><small>臺灣參考價</small><b>${p.twPrice ? 'NT$' + fmt(p.twPrice) : '—'}</b>${(tw && p.twPrice) ? `<small>${p.twPrice > tw ? '日本買省 NT$' + fmt(p.twPrice - tw) : '臺灣買不貴'}</small>` : ''}</div>
+    </div>
+    ${sec('價格說明', p.priceNote)}
+    ${sec('功效與特色', p.desc)}
+    ${sec('用法', p.usage)}
+    ${sec('注意事項', p.caution)}
+    ${sec('我的備註', p.memo)}
+    <div class="sec"><h4>搜尋</h4>${searchLinks(p, code)}</div>
+    ${srcs.length ? `<div class="sec src"><h4>資料來源</h4>${srcs.slice(0,6).map(s => `<a href="${esc(s.uri)}" target="_blank" rel="noopener">${esc(s.title || s.uri)}</a>`).join('')}</div>` : ''}
+    <div class="row"><button onclick="editProduct('${esc(code)}')">✏️ 編輯</button>${code.startsWith('img-') ? '' : `<button onclick="aiLookup('${esc(code)}')">🔄 重新查詢</button>`}</div>
+    <div class="row"><button class="ghost danger" onclick="delProduct('${esc(code)}')">刪除</button><button class="primary" onclick="closeSheet()">完成</button></div>
+  `);
+}
+
+function showNotFound(code, msg){
+  openSheet(`
+    <div class="pname">查無此商品</div>
+    <div class="pja code">${esc(code)}</div>
+    ${msg ? `<p class="hint">${esc(msg)}</p>` : ''}
+    <div class="row">${cfg.key ? `<button class="primary" onclick="aiLookup('${esc(code)}')">🤖 用 Gemini 查</button>` : ''}<button onclick="editProduct('${esc(code)}')">✏️ 手動新增</button></div>
+    ${cfg.key ? `<div class="row"><label class="btn">📦 拍包裝讓 AI 認<input type="file" accept="image/*" capture="environment" hidden onchange="packFromSheet(this,'${esc(code)}')"></label></div>` : ''}
+    <div class="sec"><h4>自己搜尋</h4>${searchLinks(null, code)}</div>
+    <div class="row"><button class="ghost" onclick="closeSheet()">關閉</button></div>
+  `);
+}
+function packFromSheet(inp, code){ const f = inp.files[0]; if (f) packLookup(f, code); }
+
+function showLoading(text){
+  openSheet(`<div class="spin"></div><p class="hint" style="text-align:center">${esc(text)}</p>`);
+}
+
+/* ---------- 編輯 ---------- */
+const FIELDS = [
+  ['nameZh','中文商品名'],['nameJa','日文原名'],['nameTw','臺灣通稱'],['brand','品牌'],['category','分類'],
+  ['jpPrice','日本售價（日圓）','num'],['twPrice','臺灣參考價（新臺幣）','num'],['priceNote','價格說明','ta'],
+  ['desc','功效與特色','ta'],['usage','用法','ta'],['caution','注意事項','ta'],['memo','我的備註','ta']
+];
+function editProduct(code){
+  const p = db[code] || {};
+  openSheet(`
+    <div class="pname">${db[code] ? '編輯商品' : '新增商品'}</div>
+    <div class="pja code">${code.startsWith('img-') ? '（無條碼）' : esc(code)}</div>
+    <form id="editForm">
+      ${FIELDS.map(([k,l,t]) => `<label class="f">${l}</label>` + (t === 'ta'
+        ? `<textarea name="${k}">${esc(p[k])}</textarea>`
+        : `<input name="${k}" ${t === 'num' ? 'inputmode="numeric"' : ''} value="${esc(p[k])}">`)).join('')}
+      <div class="row"><button type="button" class="ghost" onclick="${db[code] ? `showProduct('${esc(code)}')` : 'closeSheet()'}">取消</button><button class="primary" type="submit">儲存</button></div>
+    </form>
+  `);
+  $('#editForm').onsubmit = e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const np = Object.assign({}, p);
+    FIELDS.forEach(([k,,t]) => {
+      let v = (fd.get(k) || '').toString().trim();
+      if (t === 'num'){ v = v.replace(/[^\d.]/g, ''); np[k] = v ? Number(v) : null; }
+      else np[k] = v;
+    });
+    np.by = 'manual'; np.updated = Date.now();
+    db[code] = np; saveDb(); addHist(code);
+    toast('已儲存'); showProduct(code);
+  };
+}
+function delProduct(code){
+  if (!confirm('確定刪除這筆商品資料？')) return;
+  delete db[code]; saveDb();
+  hist = hist.filter(c => c !== code); saveHist();
+  closeSheet(); renderHist(); toast('已刪除');
+}
+
+/* ---------- Gemini ---------- */
+const SCHEMA = `{"found":true,"jan":"條碼數字，不知道則空字串","nameZh":"中文商品名","nameJa":"日文原名","nameTw":"臺灣常見通稱或譯名，沒有則空字串","brand":"品牌","category":"分類，如：頭痛藥、化妝水、眼藥水","desc":"功效與特色，2到3句","usage":"用法，簡短","caution":"注意事項，簡短，沒有則空字串","jpPrice":日本一般售價（日圓數字）或null,"twPrice":臺灣通路參考售價（新臺幣數字）或null,"priceNote":"價格說明，例如日本藥妝店常見價格區間、臺灣在哪些通路有賣"}`;
+const RULES = `規則：
+1. 只輸出一個 JSON 物件，不要 markdown、不要其他文字。
+2. 所有說明一律使用臺灣繁體中文與臺灣慣用語，不可出現簡體字或中國大陸用語；nameJa 保留日文原文。
+3. 價格只填你在搜尋結果中確實看到的數字，查不到就填 null，不要估算。
+4. 如果無法確定是這個商品，found 設為 false，其他欄位留空，不要猜測。
+JSON 格式：${SCHEMA}`;
+
+async function callGemini(parts){
+  const model = (cfg.model || 'gemini-flash-latest').trim();
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'x-goog-api-key': cfg.key },
+    body: JSON.stringify({ contents:[{ role:'user', parts }], tools:[{ google_search:{} }], generationConfig:{ temperature:0.2 } })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok){
+    const m = data?.error?.message || res.statusText;
+    if (res.status === 429) throw new Error('超過免費額度或太頻繁，請稍後再試');
+    if (res.status === 400 && /API key/i.test(m)) throw new Error('API 金鑰無效');
+    if (res.status === 404) throw new Error('找不到模型「' + model + '」，請到設定改模型名稱');
+    throw new Error(m);
+  }
+  const cand = data.candidates?.[0];
+  const text = (cand?.content?.parts || []).map(p => p.text || '').join('');
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('AI 回傳格式不正確');
+  const obj = JSON.parse(m[0]);
+  obj.sources = (cand?.groundingMetadata?.groundingChunks || []).map(c => c.web).filter(Boolean).map(w => ({ uri:w.uri, title:w.title }));
+  return obj;
+}
+function toProduct(o){
+  const num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
+  return { nameZh:o.nameZh||'', nameJa:o.nameJa||'', nameTw:o.nameTw||'', brand:o.brand||'', category:o.category||'',
+    desc:o.desc||'', usage:o.usage||'', caution:o.caution||'', jpPrice:num(o.jpPrice), twPrice:num(o.twPrice),
+    priceNote:o.priceNote||'', sources:o.sources||[], by:'ai', updated:Date.now() };
+}
+
+async function aiLookup(code){
+  if (!cfg.key){ toast('請先到設定填入 Gemini 金鑰'); return; }
+  showLoading('Gemini 正在上網查詢 ' + code + ' …');
+  try{
+    const o = await callGemini([{ text:`你是日本藥妝與日用品的商品查詢助手。請用 Google 搜尋查詢 JAN 條碼「${code}」對應的商品（可搜尋條碼數字本身，或加上「JAN」）。\n${RULES}` }]);
+    if (!o.found){ showNotFound(code, 'Gemini 查不到確定的商品資料，可以拍包裝讓 AI 辨識，或手動新增。'); return; }
+    const old = db[code];
+    const p = toProduct(o);
+    if (old?.memo) p.memo = old.memo;
+    db[code] = p; saveDb(); addHist(code);
+    showProduct(code);
+  }catch(e){ showNotFound(code, '查詢失敗：' + e.message); }
+}
+
+function fileToJpegB64(file, max = 1280){
+  return new Promise((ok, ng) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      ok(c.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); ng(new Error('無法讀取照片')); };
+    img.src = url;
+  });
+}
+async function packLookup(file, code){
+  if (!cfg.key){ toast('請先到設定填入 Gemini 金鑰'); return; }
+  await stopScan();
+  showLoading('Gemini 正在辨識包裝…');
+  try{
+    const b64 = await fileToJpegB64(file);
+    const o = await callGemini([
+      { inline_data:{ mime_type:'image/jpeg', data:b64 } },
+      { text:`你是日本藥妝與日用品的商品查詢助手。請辨識照片中的商品包裝（讀取包裝上的日文），${code ? `此商品的 JAN 條碼是「${code}」，` : '若照片中看得到條碼數字請填入 jan，'}並用 Google 搜尋補充商品資訊與價格。\n${RULES}` }
+    ]);
+    if (!o.found && !o.nameJa && !o.nameZh){ toast('辨識不出來，請拍正面、清楚一點'); closeSheet(); return; }
+    const key = code || (o.jan && /^\d{8,14}$/.test(String(o.jan)) ? String(o.jan) : 'img-' + Date.now());
+    const p = toProduct(o);
+    if (db[key]?.memo) p.memo = db[key].memo;
+    db[key] = p; saveDb(); addHist(key);
+    showProduct(key);
+  }catch(e){ toast('辨識失敗：' + e.message); closeSheet(); }
+}
+
+/* ---------- 紀錄 ---------- */
+function renderHist(){
+  const q = ($('#q').value || '').trim().toLowerCase();
+  const codes = [...hist, ...Object.keys(db).filter(c => !hist.includes(c))];
+  const rows = codes.filter(c => {
+    if (!q) return true;
+    const p = db[c] || {};
+    return [c, p.nameZh, p.nameJa, p.nameTw, p.brand].join(' ').toLowerCase().includes(q);
+  });
+  $('#histList').innerHTML = rows.length ? rows.map(c => {
+    const p = db[c];
+    const price = p?.jpPrice ? '¥' + fmt(p.jpPrice) : '';
+    return `<div class="it" onclick="${p ? `showProduct('${esc(c)}')` : `lookup('${esc(c)}')`}">
+      <div class="t"><div class="n">${esc(p ? (p.nameZh || p.nameJa || '（未命名）') : '未查到的條碼')}</div>
+      <div class="c code">${c.startsWith('img-') ? '包裝辨識' : esc(c)}${p?.brand ? '・' + esc(p.brand) : ''}</div></div>
+      ${price ? `<div class="p">${price}</div>` : ''}</div>`;
+  }).join('') : `<div class="empty">${q ? '找不到符合的商品' : '還沒有掃描紀錄'}</div>`;
+}
+$('#q').oninput = renderHist;
+
+/* ---------- 設定 ---------- */
+function renderSet(){
+  $('#cfgKey').value = cfg.key; $('#cfgModel').value = cfg.model; $('#cfgRate').value = cfg.rate;
+  $('#dbInfo').textContent = `已存 ${Object.keys(db).length} 筆商品、${hist.length} 筆掃描紀錄。`;
+}
+function readCfg(){
+  cfg.key = $('#cfgKey').value.trim();
+  cfg.model = $('#cfgModel').value.trim() || 'gemini-flash-latest';
+  cfg.rate = $('#cfgRate').value.trim();
+  LS.set('ys_cfg', cfg);
+}
+$('#btnSaveCfg').onclick = () => { readCfg(); toast('設定已儲存'); };
+$('#btnTestKey').onclick = async () => {
+  readCfg();
+  if (!cfg.key){ toast('請先填入金鑰'); return; }
+  toast('測試中…');
+  try{
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`, {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'x-goog-api-key':cfg.key },
+      body: JSON.stringify({ contents:[{ parts:[{ text:'回覆OK' }] }] })
+    });
+    const d = await res.json().catch(() => ({}));
+    toast(res.ok ? '✅ 金鑰可以用' : '❌ ' + (d?.error?.message || res.status));
+  }catch(e){ toast('❌ 連線失敗：' + e.message); }
+};
+$('#btnExport').onclick = () => {
+  const blob = new Blob([JSON.stringify({ app:'yakuzhuang-scan', v:1, exported:new Date().toISOString(), db, hist }, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `藥妝掃描備份_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$('#fileImport').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try{
+    const d = JSON.parse(await f.text());
+    const incoming = d.db || d;
+    let n = 0;
+    for (const [k, v] of Object.entries(incoming)){ if (v && typeof v === 'object'){ db[k] = v; n++; } }
+    if (Array.isArray(d.hist)) hist = [...new Set([...hist, ...d.hist])].slice(0, 200);
+    saveDb(); saveHist(); renderSet(); toast(`已匯入 ${n} 筆商品`);
+  }catch(err){ toast('匯入失敗：檔案格式不正確'); }
+};
+$('#btnClearHist').onclick = () => {
+  if (!confirm('清除掃描紀錄？（已存的商品資料會保留）')) return;
+  hist = []; saveHist(); renderSet(); toast('已清除');
+};
+
+if (!cfg.key) setTimeout(() => toast('第一次使用：到「設定」貼上 Gemini 金鑰'), 600);
+</script>
+</body>
+</html>
