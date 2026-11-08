@@ -373,7 +373,9 @@ async function callGemini(parts, useSearch = !!cfg.search){
   throw new Error('所有免費模型目前都很忙，請過幾分鐘再試');
 }
 async function callModel(model, parts, useSearch){
-  const body = { contents:[{ role:'user', parts }], generationConfig:{ temperature:0.2 } };
+  const body = { contents:[{ role:'user', parts }], generationConfig:{ temperature:0.2, maxOutputTokens:4096 } };
+  // 不聯網時可強制回傳 JSON（聯網搜尋時不支援）
+  if (!useSearch) body.generationConfig.responseMimeType = 'application/json';
   if (useSearch) body.tools = [{ google_search:{} }];
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method:'POST',
@@ -396,10 +398,16 @@ async function callModel(model, parts, useSearch){
     throw new Error(m);
   }
   const cand = data.candidates?.[0];
-  const text = (cand?.content?.parts || []).map(p => p.text || '').join('');
+  // 排除模型的「思考」內容，只取正式回答
+  const text = (cand?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('').replace(/```(?:json)?/gi, '').trim();
+  let obj = null;
   const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('AI 回傳格式不正確');
-  const obj = JSON.parse(m[0]);
+  if (m){ try{ obj = JSON.parse(m[0]); }catch(e){} }
+  if (!obj){
+    const why = cand?.finishReason && cand.finishReason !== 'STOP' ? `（${cand.finishReason}）` : '';
+    if (!text) throw new Error('AI 沒有回傳內容' + why + '，請再試一次');
+    throw new Error('AI 回傳格式不正確' + why + '：' + text.slice(0, 80));
+  }
   obj.noSearch = !useSearch;
   obj.sources = (cand?.groundingMetadata?.groundingChunks || []).map(c => c.web).filter(Boolean).map(w => ({ uri:w.uri, title:w.title }));
   return obj;
