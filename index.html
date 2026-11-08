@@ -103,7 +103,7 @@ nav button.on{color:var(--acc)}
       <p class="hint">到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:#8fb3ff">aistudio.google.com/apikey</a> 用 Google 帳號免費申請。</p>
       <label class="f">模型</label>
       <input id="cfgModel" list="models" placeholder="gemini-flash-latest">
-      <datalist id="models"><option value="gemini-flash-latest"><option value="gemini-flash-lite-latest"><option value="gemini-pro-latest"></datalist>
+      <datalist id="models"><option value="gemini-flash-latest"><option value="gemini-2.5-flash"><option value="gemini-2.5-flash-lite"><option value="gemini-flash-lite-latest"><option value="gemini-pro-latest"></datalist>
       <label class="f">日圓匯率（1 日圓 = ? 新臺幣，留空不換算）</label>
       <input id="cfgRate" inputmode="decimal" placeholder="例：0.21">
       <div class="row"><button id="btnSaveCfg" class="primary">儲存設定</button><button id="btnTestKey">測試金鑰</button></div>
@@ -263,6 +263,7 @@ function showProduct(code){
       ${p.brand ? `<span class="tag">${esc(p.brand)}</span>` : ''}
       ${p.category ? `<span class="tag">${esc(p.category)}</span>` : ''}
       <span class="tag ${p.by === 'ai' ? 'ai' : ''}">${p.by === 'ai' ? 'AI 查詢' : '手動編輯'}</span>
+      ${p.by === 'ai' && p.noSearch ? '<span class="tag" style="color:var(--warn)">未聯網，資料僅供參考</span>' : ''}
       ${code.startsWith('img-') ? '' : `<span class="tag code">${esc(code)}</span>`}
     </div>
     <div class="prices">
@@ -346,17 +347,25 @@ const RULES = `規則：
 4. 如果無法確定是這個商品，found 設為 false，其他欄位留空，不要猜測。
 JSON 格式：${SCHEMA}`;
 
-async function callGemini(parts){
+async function callGemini(parts, useSearch = true){
   const model = (cfg.model || 'gemini-flash-latest').trim();
+  const body = { contents:[{ role:'user', parts }], generationConfig:{ temperature:0.2 } };
+  if (useSearch) body.tools = [{ google_search:{} }];
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method:'POST',
     headers:{ 'Content-Type':'application/json', 'x-goog-api-key': cfg.key },
-    body: JSON.stringify({ contents:[{ role:'user', parts }], tools:[{ google_search:{} }], generationConfig:{ temperature:0.2 } })
+    body: JSON.stringify(body)
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok){
     const m = data?.error?.message || res.statusText;
-    if (res.status === 429) throw new Error('超過免費額度或太頻繁，請稍後再試');
+    // 有些模型的免費額度不含 Google 搜尋：自動改成不聯網再試一次
+    if (res.status === 429 && useSearch){
+      const o = await callGemini(parts, false);
+      o.noSearch = true;
+      return o;
+    }
+    if (res.status === 429) throw new Error('額度不足（' + model + '）：' + m.slice(0, 160) + '\n→ 可到設定改用其他模型，例如 gemini-2.5-flash 或 gemini-flash-lite-latest');
     if (res.status === 400 && /API key/i.test(m)) throw new Error('API 金鑰無效');
     if (res.status === 404) throw new Error('找不到模型「' + model + '」，請到設定改模型名稱');
     throw new Error(m);
@@ -373,7 +382,7 @@ function toProduct(o){
   const num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
   return { nameZh:o.nameZh||'', nameJa:o.nameJa||'', nameTw:o.nameTw||'', brand:o.brand||'', category:o.category||'',
     desc:o.desc||'', usage:o.usage||'', caution:o.caution||'', jpPrice:num(o.jpPrice), twPrice:num(o.twPrice),
-    priceNote:o.priceNote||'', sources:o.sources||[], by:'ai', updated:Date.now() };
+    priceNote:o.priceNote||'', sources:o.sources||[], noSearch:!!o.noSearch, by:'ai', updated:Date.now() };
 }
 
 async function aiLookup(code){
