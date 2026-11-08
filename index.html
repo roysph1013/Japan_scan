@@ -229,8 +229,8 @@ function addHist(code){
 function lookup(code){
   addHist(code);
   if (db[code]) return showProduct(code);
-  if (cfg.key) return aiLookup(code);
-  showNotFound(code, '尚未設定 Gemini 金鑰，只能查本機資料。');
+  if (cfg.key && cfg.search) return aiLookup(code);
+  showNotFound(code, cfg.key ? '免費方案不能上網查，只憑條碼數字 AI 會猜錯。請拍商品包裝，讓 AI 直接讀包裝上的字。' : '尚未設定 Gemini 金鑰，只能查本機資料。');
 }
 
 /* ---------- 顯示 ---------- */
@@ -280,7 +280,7 @@ function showProduct(code){
     ${sec('我的備註', p.memo)}
     <div class="sec"><h4>搜尋</h4>${searchLinks(p, code)}</div>
     ${srcs.length ? `<div class="sec src"><h4>資料來源</h4>${srcs.slice(0,6).map(s => `<a href="${esc(s.uri)}" target="_blank" rel="noopener">${esc(s.title || s.uri)}</a>`).join('')}</div>` : ''}
-    <div class="row"><button onclick="editProduct('${esc(code)}')">✏️ 編輯</button>${code.startsWith('img-') ? '' : `<button onclick="aiLookup('${esc(code)}')">🔄 重新查詢</button>`}</div>
+    <div class="row"><button onclick="editProduct('${esc(code)}')">✏️ 編輯</button>${code.startsWith('img-') ? '' : (cfg.search ? `<button onclick="aiLookup('${esc(code)}')">🔄 重新查詢</button>` : `<label class="btn">📦 拍包裝重認<input type="file" accept="image/*" capture="environment" hidden onchange="packFromSheet(this,'${esc(code)}')"></label>`)}</div>
     <div class="row"><button class="ghost danger" onclick="delProduct('${esc(code)}')">刪除</button><button class="primary" onclick="closeSheet()">完成</button></div>
   `);
 }
@@ -290,8 +290,8 @@ function showNotFound(code, msg){
     <div class="pname">查無此商品</div>
     <div class="pja code">${esc(code)}</div>
     ${msg ? `<p class="hint">${esc(msg)}</p>` : ''}
-    <div class="row">${cfg.key ? `<button class="primary" onclick="aiLookup('${esc(code)}')">🤖 用 Gemini 查</button>` : ''}<button onclick="editProduct('${esc(code)}')">✏️ 手動新增</button></div>
-    ${cfg.key ? `<div class="row"><label class="btn">📦 拍包裝讓 AI 認<input type="file" accept="image/*" capture="environment" hidden onchange="packFromSheet(this,'${esc(code)}')"></label></div>` : ''}
+    ${cfg.key ? `<div class="row"><label class="btn primary">📦 拍包裝讓 AI 認<input type="file" accept="image/*" capture="environment" hidden onchange="packFromSheet(this,'${esc(code)}')"></label></div>` : ''}
+    <div class="row">${cfg.key && cfg.search ? `<button onclick="aiLookup('${esc(code)}')">🤖 用 Gemini 上網查</button>` : ''}<button onclick="editProduct('${esc(code)}')">✏️ 手動新增</button></div>
     <div class="sec"><h4>自己搜尋</h4>${searchLinks(null, code)}</div>
     <div class="row"><button class="ghost" onclick="closeSheet()">關閉</button></div>
   `);
