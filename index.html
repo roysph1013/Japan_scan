@@ -350,8 +350,29 @@ const RULES = `規則：
 4. 如果無法確定是這個商品，found 設為 false，其他欄位留空，不要猜測。
 JSON 格式：${SCHEMA}`;
 
+const FREE_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+// 模型忙碌（503/500）時：同一模型重試一次，再依序換其他免費模型
 async function callGemini(parts, useSearch = !!cfg.search){
-  const model = (cfg.model || 'gemini-3.8-flash').trim();
+  const first = (cfg.model || FREE_MODELS[0]).trim();
+  const list = [first, ...FREE_MODELS.filter(m => m !== first)];
+  let lastErr;
+  for (const m of list){
+    for (let i = 0; i < 2; i++){
+      try{
+        const o = await callModel(m, parts, useSearch);
+        if (m !== first) o.modelUsed = m;
+        return o;
+      }catch(e){
+        lastErr = e;
+        if (!e.busy) throw e;
+        await sleep(1200 * (i + 1));
+      }
+    }
+  }
+  throw new Error('所有免費模型目前都很忙，請過幾分鐘再試');
+}
+async function callModel(model, parts, useSearch){
   const body = { contents:[{ role:'user', parts }], generationConfig:{ temperature:0.2 } };
   if (useSearch) body.tools = [{ google_search:{} }];
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -364,12 +385,13 @@ async function callGemini(parts, useSearch = !!cfg.search){
     const m = data?.error?.message || res.statusText;
     // 有些模型的免費額度不含 Google 搜尋：自動改成不聯網再試一次
     if (res.status === 429 && useSearch){
-      const o = await callGemini(parts, false);
+      const o = await callModel(model, parts, false);
       o.noSearch = true;
       return o;
     }
     if (res.status === 429) throw new Error('額度不足（' + model + '）：' + m.slice(0, 160) + '\n→ 可到設定改用其他模型，例如 gemini-3.6-flash 或 gemini-3.5-flash-lite');
     if (res.status === 400 && /API key/i.test(m)) throw new Error('API 金鑰無效');
+    if (res.status === 503 || res.status === 500 || /high demand|overloaded/i.test(m)){ const e = new Error('模型忙碌中'); e.busy = true; throw e; }
     if (res.status === 404) throw new Error('找不到模型「' + model + '」，請到設定改模型名稱');
     throw new Error(m);
   }
