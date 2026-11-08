@@ -102,8 +102,10 @@ nav button.on{color:var(--acc)}
       <input id="cfgKey" type="password" placeholder="AIza…" autocomplete="off">
       <p class="hint">到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:#8fb3ff">aistudio.google.com/apikey</a> 用 Google 帳號免費申請。</p>
       <label class="f">模型</label>
-      <input id="cfgModel" list="models" placeholder="gemini-flash-latest">
-      <datalist id="models"><option value="gemini-flash-latest"><option value="gemini-2.5-flash"><option value="gemini-2.5-flash-lite"><option value="gemini-flash-lite-latest"><option value="gemini-pro-latest"></datalist>
+      <input id="cfgModel" list="models" placeholder="gemini-3.8-flash">
+      <datalist id="models"><option value="gemini-3.8-flash"><option value="gemini-3.6-flash"><option value="gemini-3.5-flash-lite"><option value="gemini-3.1-flash-lite"></datalist>
+      <label class="f" style="display:flex;align-items:center;gap:10px;color:var(--text)"><input id="cfgSearch" type="checkbox" style="width:auto"> 使用 Google 搜尋查價格（需付費方案）</label>
+      <p class="hint">免費方案不能用 Google 搜尋，勾選會被擋。沒綁信用卡請不要勾。</p>
       <label class="f">日圓匯率（1 日圓 = ? 新臺幣，留空不換算）</label>
       <input id="cfgRate" inputmode="decimal" placeholder="例：0.21">
       <div class="row"><button id="btnSaveCfg" class="primary">儲存設定</button><button id="btnTestKey">測試金鑰</button></div>
@@ -142,7 +144,8 @@ const LS = {
 };
 let db = LS.get('ys_db', {});
 let hist = LS.get('ys_hist', []);
-let cfg = Object.assign({ key:'', model:'gemini-flash-latest', rate:'' }, LS.get('ys_cfg', {}));
+let cfg = Object.assign({ key:'', model:'gemini-3.8-flash', rate:'', search:false }, LS.get('ys_cfg', {}));
+if (/gemini-(flash-latest|2\.5)/.test(cfg.model)) cfg.model = 'gemini-3.8-flash';
 const saveDb = () => LS.set('ys_db', db);
 const saveHist = () => LS.set('ys_hist', hist);
 
@@ -347,8 +350,8 @@ const RULES = `規則：
 4. 如果無法確定是這個商品，found 設為 false，其他欄位留空，不要猜測。
 JSON 格式：${SCHEMA}`;
 
-async function callGemini(parts, useSearch = true){
-  const model = (cfg.model || 'gemini-flash-latest').trim();
+async function callGemini(parts, useSearch = !!cfg.search){
+  const model = (cfg.model || 'gemini-3.8-flash').trim();
   const body = { contents:[{ role:'user', parts }], generationConfig:{ temperature:0.2 } };
   if (useSearch) body.tools = [{ google_search:{} }];
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -365,7 +368,7 @@ async function callGemini(parts, useSearch = true){
       o.noSearch = true;
       return o;
     }
-    if (res.status === 429) throw new Error('額度不足（' + model + '）：' + m.slice(0, 160) + '\n→ 可到設定改用其他模型，例如 gemini-2.5-flash 或 gemini-flash-lite-latest');
+    if (res.status === 429) throw new Error('額度不足（' + model + '）：' + m.slice(0, 160) + '\n→ 可到設定改用其他模型，例如 gemini-3.6-flash 或 gemini-3.5-flash-lite');
     if (res.status === 400 && /API key/i.test(m)) throw new Error('API 金鑰無效');
     if (res.status === 404) throw new Error('找不到模型「' + model + '」，請到設定改模型名稱');
     throw new Error(m);
@@ -375,6 +378,7 @@ async function callGemini(parts, useSearch = true){
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('AI 回傳格式不正確');
   const obj = JSON.parse(m[0]);
+  obj.noSearch = !useSearch;
   obj.sources = (cand?.groundingMetadata?.groundingChunks || []).map(c => c.web).filter(Boolean).map(w => ({ uri:w.uri, title:w.title }));
   return obj;
 }
@@ -454,12 +458,13 @@ $('#q').oninput = renderHist;
 
 /* ---------- 設定 ---------- */
 function renderSet(){
-  $('#cfgKey').value = cfg.key; $('#cfgModel').value = cfg.model; $('#cfgRate').value = cfg.rate;
+  $('#cfgKey').value = cfg.key; $('#cfgModel').value = cfg.model; $('#cfgRate').value = cfg.rate; $('#cfgSearch').checked = !!cfg.search;
   $('#dbInfo').textContent = `已存 ${Object.keys(db).length} 筆商品、${hist.length} 筆掃描紀錄。`;
 }
 function readCfg(){
   cfg.key = $('#cfgKey').value.trim();
-  cfg.model = $('#cfgModel').value.trim() || 'gemini-flash-latest';
+  cfg.model = $('#cfgModel').value.trim() || 'gemini-3.8-flash';
+  cfg.search = $('#cfgSearch').checked;
   cfg.rate = $('#cfgRate').value.trim();
   LS.set('ys_cfg', cfg);
 }
